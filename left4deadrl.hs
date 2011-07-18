@@ -55,6 +55,22 @@ defaultWall = Monster {
 		hp = 0
 	}
 
+safehouseExit :: Monster
+safehouseExit = Monster {
+		symbol = "]",
+		loc = (0, 0),
+		impassible = False,
+		hp = 0
+	}
+
+safehouseEntrance :: Monster
+safehouseEntrance = Monster {
+		symbol = "[",
+		loc = (0, 0),
+		impassible = False,
+		hp = 0
+	}
+
 defaultRogue :: Monster
 defaultRogue = Monster {
 		symbol = "@",
@@ -162,10 +178,10 @@ blotMonster m = do
 	blotString $ show m
 
 win :: Game -> Bool
-win = null . monsters
+win g = (("[" ==) . symbol . cellAt g . loc . rogue) g
 
 lose :: Game -> Bool
-lose = ((==) 0) . hp . rogue
+lose = (0 ==) . hp . rogue
 
 blotRecap :: Game -> String -> IO ()
 blotRecap g s = do
@@ -210,8 +226,19 @@ loop g = do
 generateRow :: Int -> IO [Monster]
 generateRow w = replicateM w (pick (defaultWall:(replicate 10 defaultFloor)))
 
+generateSafehouseRow :: Int -> IO [Monster]
+generateSafehouseRow w = do
+	cells <- replicateM (w - 2) (pick (defaultWall:(replicate 10 defaultFloor)))
+
+	return $ safehouseEntrance:(cells ++ [safehouseExit])
+
 generateLevel :: Int -> Int -> IO [[Monster]]
-generateLevel w h = replicateM h (generateRow w)
+generateLevel w h = do
+	as <- replicateM ((h - 1) `div` 2) (generateRow w)
+	b <- generateSafehouseRow w
+	cs <- replicateM ((h - 1) `div` 2) (generateRow w)
+
+	return $ as ++ (b:cs)
 
 commonZombies :: Game -> Int
 commonZombies g = width g `div` 10
@@ -250,16 +277,13 @@ restart = do
 	-- Reserve space for messages
 	let h' = h - messageSpace
 
-	locX <- pick [0 .. (w - 1)]
-	locY <- pick [0 .. (h' - 1)]
-
 	lev <- generateLevel w h'
 	let g = defaultGame {
 			width = w,
 			height = h',
 			level = lev,
 			rogue = defaultRogue {
-					loc = (locX, locY)
+					loc = (w - 1, h' `div` 2)
 				}
 		}
 
