@@ -1,19 +1,26 @@
+-- A Left4Dead Roguelike
+--
+-- Andrew Pennebaker
+
 import HsCharm
 import Maybe (fromJust)
 import Control.Monad (when, replicateM)
-import Data.List (find, delete)
+import Data.List (find, delete, sortBy)
 import Data.List.Utils (join)
+import Data.HashMap hiding (map)
 import Random (randomRIO)
 
 pick :: [a] -> IO a
 pick xs = (randomRIO (0, length xs - 1)) >>= (return . (xs !!))
 
+type Pos = (Int, Int)
+
 data Game = Game {
 		dungeon :: [[Cell]],
 		messages :: [String],
-		rogueLoc :: (Int, Int),
-		safehouseExitLoc :: (Int, Int),
-		safehouseEntranceLoc :: (Int, Int)
+		rogueLoc :: Pos,
+		safehouseExitLoc :: Pos,
+		safehouseEntranceLoc :: Pos
 	}
 
 -- Assumes each row is the same length
@@ -129,15 +136,15 @@ zombie = Monster {
 		hp = 1
 	}
 
-withinBounds :: Game -> (Int, Int) -> Bool
+withinBounds :: Game -> Pos -> Bool
 withinBounds g (x, y) = (x >= 0) && (x <= width g - 1) && (y >= 0) && (y <= height g - 1)
 
 -- Assumes x and y are within bounds.
-getCell :: Game -> (Int, Int) -> Cell
+getCell :: Game -> Pos -> Cell
 getCell g (x, y) = ((dungeon g) !! y) !! x
 
 -- Assumes x and y are within bounds.
-putCell :: Game -> (Int, Int) -> Cell -> Game
+putCell :: Game -> Pos -> Cell -> Game
 putCell g (x, y) c = g { dungeon = (rowsBefore ++ [curRow'] ++ rowsAfter) }
 	where
 		rows = dungeon g
@@ -145,29 +152,29 @@ putCell g (x, y) c = g { dungeon = (rowsBefore ++ [curRow'] ++ rowsAfter) }
 		(colsBefore, _:colsAfter) = splitAt x curRow
 		curRow' = colsBefore ++ [c] ++ colsAfter
 
--- Assumes x and y are within bounds.
-attack :: Game -> (Int, Int) -> IO Game
-attack g (x, y) = do
-	let c = getCell g (x, y)
-	let t = tile c
-	let o = occupant c
+-- -- Assumes x and y are within bounds.
+-- attack :: Game -> Pos -> IO Game
+-- attack g (x, y) = do
+-- 	let c = getCell g (x, y)
+-- 	let t = tile c
+-- 	let o = occupant c
+-- 
+-- 	case o of
+-- 		-- Monster
+-- 		Just m -> do
+-- 			let m' = m { hp = hp m - 1 }
+-- 			let c' = if hp m' <= 0
+-- 				then
+-- 					c { occupant = Nothing }
+-- 				else
+-- 					c { occupant = Just m' }
+-- 
+-- 			let g' = putCell g (x, y) c'
+-- 			return $ g' { messages = ("You hit a " ++ monsterName m ++ "."):(voicemail g) }
+-- 		-- Tile
+-- 		_ -> return $ g { messages = ("You hit a " ++ tileName t ++ ""):(voicemail g) }
 
-	case o of
-		-- Monster
-		Just m -> do
-			let m' = m { hp = hp m - 1 }
-			let c' = if hp m' <= 0
-				then
-					c { occupant = Nothing }
-				else
-					c { occupant = Just m' }
-
-			let g' = putCell g (x, y) c'
-			return $ g' { messages = ("You hit a " ++ monsterName m ++ "."):(voicemail g) }
-		-- Tile
-		_ -> return $ g { messages = ("You hit a " ++ tileName t ++ ""):(voicemail g) }
-
-moveOccupant :: Game -> (Int, Int) -> (Int, Int) -> Game
+moveOccupant :: Game -> Pos -> Pos -> Game
 moveOccupant g a b = g''
 	where
 		aCell = getCell g a
@@ -237,9 +244,11 @@ blotRecap g s = do
 	case k of
 		KeyY -> restart
 		KeyN -> return ()
+		KeyQ -> return ()
+		KeyEscape -> return ()
 		_ -> blotRecap g s
 
-strike :: Game -> (Int, Int) -> (Int, Int) -> Game
+strike :: Game -> Pos -> Pos -> Game
 strike g a b = g'
 	where
 		aCell = getCell g a
@@ -255,8 +264,30 @@ strike g a b = g'
 				-- Reinstert monster.
 				placeMonster (g { messages = ("Hit a " ++ monsterName m2' ++ "."):(voicemail g) }) b m2'
 
+-- -- Ignore corner adjacencies
+-- adjacencies :: Game -> Pos -> [Pos]
+-- adjacencies g (x, y) = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+-- 
+-- manhattan :: Pos -> Pos -> Int
+-- manhattan = floor $ sqrt $ fromIntegral $ dx * dx + dy * dy
+-- 	where
+-- 		dx = fst p1 - fst p2
+-- 		dy = snd p1 - snd p2
+-- 
+-- -- Based on A* Pathfinding for Beginners
+-- -- http://www.policyalmanac.org/games/aStarTutorial.htm
+-- path :: Game -> Pos -> Pos -> [Pos]
+-- path g a b = path' g a b [] [a] (HashMap Pos Pos) (insert a 0 (HashMap Pos Int)) (insert a (manhattan a b) (HashMap Pos Int)) (insert a (manhattan a b) (HashMap Pos Int))
+-- 	where
+-- 		path' :: Game -> Pos -> Pos -> [Pos] -> [Pos] -> HashMap Pos Pos -> HashMap Pos Int -> HashMap Pos Int -> HashMap Pos Int -> [Pos]
+-- 		path' g a b closed open cameFrom gScores hScores fScores
+-- 			| not $ null open = -- ...
+-- 				where
+-- 					x = sortBy ((\k, \v) -> v) $ assoc fScores
+-- 					
+-- 
 -- -- Let each monster respond.
--- respond :: Game -> [(Int, Int)] -> IO Game
+-- respond :: Game -> [Pos] -> IO Game
 -- respond g [] = return g
 -- respond g (a:as) = do
 -- 	let b = rogueLoc g
@@ -286,7 +317,7 @@ occupied c = case occupant c of
 	_ -> False
 
 -- The location of every monster that is not a rogue
-monsters :: Game -> [(Int, Int)]
+monsters :: Game -> [Pos]
 monsters g = [
 		(x, y)
 		|
@@ -346,7 +377,7 @@ generateDungeon w h = do
 commonZombies :: Game -> Int
 commonZombies g = width g `div` 10
 
-placeMonster :: Game -> (Int, Int) -> Monster -> Game
+placeMonster :: Game -> Pos -> Monster -> Game
 placeMonster g (x, y) r = putCell g (x, y) c'
 	where
 		c = getCell g (x, y)
