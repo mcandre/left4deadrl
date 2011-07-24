@@ -1,4 +1,5 @@
 import HsCharm
+import Maybe (fromJust)
 import Control.Monad (when, replicateM)
 import Data.List (find, delete)
 import Data.List.Utils (join)
@@ -8,156 +9,205 @@ pick :: [a] -> IO a
 pick xs = (randomRIO (0, length xs - 1)) >>= (return . (xs !!))
 
 data Game = Game {
-		width :: Int,
-		height :: Int,
+		dungeon :: [[Cell]],
 		messages :: [String],
-		level :: [[Monster]],
-		rogue :: Monster,
-		monsters :: [Monster]
+		rogueLoc :: (Int, Int),
+		safehouseExitLoc :: (Int, Int),
+		safehouseEntranceLoc :: (Int, Int)
 	}
 
-defaultGame :: Game
-defaultGame = Game {
-		width = 80,
-		height = 24 - messageSpace,
-		messages = [],
-		level = replicate (24 - messageSpace) (replicate 80 defaultFloor),
-		rogue = defaultRogue,
-		monsters = []
+-- Assumes each row is the same length
+width :: Game -> Int
+width = length . (!! 0) . dungeon
+
+height :: Game -> Int
+height = length . dungeon
+
+data Cell = Cell {
+		tile :: Tile,
+		occupant :: Maybe Monster
 	}
 
-voicemail :: Game -> [String]
-voicemail = take 2 . messages
+data Tile = Tile {
+		tileName :: String,
+
+		-- ASCII symbol
+		tileSymbol :: String,
+
+		-- From 0.0 (easily traversed) to 1.0 (impassible)
+		terrain :: Float
+	}
 
 data Monster = Monster {
-		symbol :: String,
-		loc :: (Int, Int),
-		impassible :: Bool,
+		monsterName :: String,
+
+		-- ASCII symbol
+		monsterSymbol :: String,
+
+		-- Attack points
+		ap :: Int,
+
+		-- Health points
 		hp :: Int
-	} deriving (Eq)
+	}
+
+instance Show Tile where
+	show = tileSymbol
 
 instance Show Monster where
-	show = symbol
+	show = monsterSymbol
 
-defaultFloor :: Monster
-defaultFloor = Monster {
-		symbol = " ",
-		loc = (0, 0),
-		impassible = False,
-		hp = 0
-	}
-
-defaultWall :: Monster
-defaultWall = Monster {
-		symbol = "#",
-		loc = (0, 0),
-		impassible = True,
-		hp = 0
-	}
-
-safehouseExit :: Monster
-safehouseExit = Monster {
-		symbol = "]",
-		loc = (0, 0),
-		impassible = False,
-		hp = 0
-	}
-
-safehouseEntrance :: Monster
-safehouseEntrance = Monster {
-		symbol = "[",
-		loc = (0, 0),
-		impassible = False,
-		hp = 0
-	}
-
-defaultRogue :: Monster
-defaultRogue = Monster {
-		symbol = "@",
-		loc = (0, 0),
-		impassible = True,
-		hp = 10
-	}
-
-commonZombie :: Monster
-commonZombie = Monster {
-		symbol = "z",
-		loc = (0, 0),
-		impassible = True,
-		hp = 1
-	}
-
-cellAt :: Game -> (Int, Int) -> Monster
-cellAt g (x, y) = ((level g) !! y) !! x
-
-thingAt :: Game -> (Int, Int) -> Monster
-thingAt g (x, y) = case find (\e -> (((x, y) ==) . loc) e) (monsters g) of
-	Just m -> m
-	_ -> cellAt g (x, y)
-
-attack :: Game -> Monster -> IO Game
-attack g m = case (symbol m) of
-	"#" -> return g { messages = "Immobile wall.":(voicemail g) }
-	"z" -> do
-		let m' = m { hp = hp m - 1 }
-		let ms = delete m (monsters g)
-		return g {
-				monsters = if hp m' == 0 then ms else m':ms,
-				messages = "You hit a zombie.":(voicemail g)
-			}
-	_ -> return g
-
-move :: Game -> Key -> IO Game
-move g KeyUp
-	| y == 0 = return $ g { messages = "Edge of the world.":(voicemail g) }
-	| impassible c = attack g c
-	| otherwise = return $ g {
-			rogue = r { loc = (x, y - 1) },
-			messages = "You moved up!":(voicemail g)
-		}
-	where
-		r = rogue g
-		(x, y) = loc r
-		c = thingAt g (x, y - 1)
-
-move g KeyDown
-	| y == (height g) - 1 = return $ g { messages = "Edge of the world.":(voicemail g) }
-	| impassible c = attack g c
-	| otherwise = return $ g {
-			rogue = r { loc = (x, y + 1) },
-			messages = "You moved down!":(voicemail g)
-		}
-	where
-		r = rogue g
-		(x, y) = loc r
-		c = thingAt g (x, y + 1)
-
-move g KeyRight
-	| x == (width g) - 1 = return $ g { messages = "Edge of the world.":(voicemail g) }
-	| impassible c = attack g c
-	| otherwise = return $ g {
-			rogue = r { loc = (x + 1, y) },
-			messages = "You moved right!":(voicemail g)
-		}
-	where
-		r = rogue g
-		(x, y) = loc r
-		c = thingAt g (x + 1, y)
-
-move g KeyLeft
-	| x == 0 = return $ g { messages = "Edge of the world.":(voicemail g) }
-	| impassible c = attack g c
-	| otherwise = return $ g {
-			rogue = r { loc = (x - 1, y) },
-			messages = "You moved left!":(voicemail g)
-		}
-	where
-		r = rogue g
-		(x, y) = loc r
-		c = thingAt g (x - 1, y)
+instance Show Cell where
+	show c = case occupant c of
+		Nothing -> (show . tile) c
+		Just m -> show m
 
 messageSpace :: Int
 messageSpace = 3
+
+voicemail :: Game -> [String]
+voicemail = take (messageSpace - 1) . messages
+
+space = Tile {
+		tileName = "floor",
+		tileSymbol = " ",
+		terrain = 0.0
+	}
+
+emptyCell = Cell {
+		tile = space,
+		occupant = Nothing
+	}
+
+emptySpace = emptyCell {
+		tile = space
+	}
+
+wall = Tile {
+		tileName = "wall",
+		tileSymbol = "#",
+		terrain = 1.0
+	}
+
+emptyWall = emptyCell {
+		tile = wall
+	}
+
+-- Player starts here
+safehouseExit = Tile {
+		tileName = "safehouse exit",
+		tileSymbol = "]",
+		terrain = 0.0
+	}
+
+emptySafehouseExit = emptyCell {
+		tile = safehouseExit
+	}
+
+-- Player must get here
+safehouseEntrance = Tile {
+		tileName = "safehouse entrance",
+		tileSymbol = "[",
+		terrain = 0.0
+	}
+
+emptySafehouseEntrance = emptyCell {
+		tile = safehouseEntrance
+	}
+
+defaultRogue = Monster {
+		monsterName = "rogue",
+		monsterSymbol = "@",
+		ap = 1,
+		hp = 10
+	}
+
+zombie = Monster {
+		monsterName = "zombie",
+		monsterSymbol = "z",
+		ap = 1,
+		hp = 1
+	}
+
+withinBounds :: Game -> (Int, Int) -> Bool
+withinBounds g (x, y) = (x >= 0) && (x <= width g - 1) && (y >= 0) && (y <= height g - 1)
+
+-- Assumes x and y are within bounds.
+getCell :: Game -> (Int, Int) -> Cell
+getCell g (x, y) = ((dungeon g) !! y) !! x
+
+-- Assumes x and y are within bounds.
+putCell :: Game -> (Int, Int) -> Cell -> Game
+putCell g (x, y) c = g { dungeon = (rowsBefore ++ [curRow'] ++ rowsAfter) }
+	where
+		rows = dungeon g
+		(rowsBefore, curRow:rowsAfter) = splitAt y rows
+		(colsBefore, _:colsAfter) = splitAt x curRow
+		curRow' = colsBefore ++ [c] ++ colsAfter
+
+-- Assumes x and y are within bounds.
+attack :: Game -> (Int, Int) -> IO Game
+attack g (x, y) = do
+	let c = getCell g (x, y)
+	let t = tile c
+	let o = occupant c
+
+	case o of
+		-- Monster
+		Just m -> do
+			let m' = m { hp = hp m - 1 }
+			let c' = if hp m' <= 0
+				then
+					c { occupant = Nothing }
+				else
+					c { occupant = Just m' }
+
+			let g' = putCell g (x, y) c'
+			return $ g' { messages = ("You hit a " ++ monsterName m ++ "."):(voicemail g) }
+		-- Tile
+		_ -> return $ g { messages = ("You hit a " ++ tileName t ++ ""):(voicemail g) }
+
+moveOccupant :: Game -> (Int, Int) -> (Int, Int) -> Game
+moveOccupant g a b = g''
+	where
+		aCell = getCell g a
+		bCell = getCell g b
+		bCell' = bCell { occupant = occupant aCell }
+		aCell' = aCell { occupant = Nothing }
+		g' = putCell g b bCell'
+		g'' = putCell g' a aCell'
+
+move :: Game -> Key -> IO Game
+move g k = do
+	let (x, y) = rogueLoc g
+
+	let (x', y') = case k of
+		KeyUp -> (x, y - 1)
+		KeyDown -> (x, y + 1)
+		KeyRight -> (x + 1, y)
+		KeyLeft -> (x - 1, y)
+
+	if withinBounds g (x', y')
+		then do
+			let b = getCell g (x', y')
+
+			case occupant b of
+				-- Monster in the way
+				Just m -> do
+					return $ strike g (rogueLoc g) (x', y')
+
+				-- Nothing in the way
+				_ -> do
+					let t = tile b
+
+					case terrain t of
+						0.0 -> do
+							-- Move rogue from cell a to cell b.
+							let g' = moveOccupant g (x, y) (x', y')
+							return $ g' { rogueLoc = (x', y') }
+						1.0 -> return $ g { messages = ("There is a " ++ tileName t ++ " in the way."):(voicemail g) }
+		else
+			return $ g { messages = "Edge of the world.":(voicemail g) }
 
 blotMessages :: [String] -> Int -> IO ()
 blotMessages [] _ = return ()
@@ -166,22 +216,16 @@ blotMessages (m:ms) row = do
 	hCenterString m
 	blotMessages ms (row - 1)
 
-blotLevel :: [[Monster]] -> IO ()
-blotLevel lev = do
+blotDungeon :: [[Cell]] -> IO ()
+blotDungeon g = do
 	moveCursor 0 0
-	(blotString . join "\n" . (map (join "" . (map show)))) lev
-
-blotMonster :: Monster -> IO ()
-blotMonster m = do
-	let (x, y) = loc m
-	moveCursor x y
-	blotString $ show m
+	(blotString . join "\n" . (map (join "" . (map show)))) g
 
 win :: Game -> Bool
-win g = (("[" ==) . symbol . cellAt g . loc . rogue) g
+win g = (safehouseEntranceLoc g) == (rogueLoc g)
 
 lose :: Game -> Bool
-lose = (0 ==) . hp . rogue
+lose g = ((0 ==) . hp . fromJust . occupant . getCell g . rogueLoc) g
 
 blotRecap :: Game -> String -> IO ()
 blotRecap g s = do
@@ -195,21 +239,76 @@ blotRecap g s = do
 		KeyN -> return ()
 		_ -> blotRecap g s
 
+strike :: Game -> (Int, Int) -> (Int, Int) -> Game
+strike g a b = g'
+	where
+		aCell = getCell g a
+		bCell = getCell g b
+		m1 = fromJust $ occupant aCell
+		m2 = fromJust $ occupant bCell
+		m2' = m2 { hp = hp m2 - ap m1 }
+		g' = if (hp m2' <= 0) && (monsterName m2' /= "rogue")
+			then
+				-- Delete monster.
+				putCell (g { messages = ("Killed a " ++ monsterName m2' ++ "."):(voicemail g) }) b (bCell { occupant = Nothing })
+			else
+				-- Reinstert monster.
+				placeMonster (g { messages = ("Hit a " ++ monsterName m2' ++ "."):(voicemail g) }) b m2'
+
+-- -- Let each monster respond.
+-- respond :: Game -> [(Int, Int)] -> IO Game
+-- respond g [] = return g
+-- respond g (a:as) = do
+-- 	let b = rogueLoc g
+-- 
+-- 	let m = fromJust $ occupant $ getCell g a
+-- 
+-- 	case path g a b of
+-- 		Just ps -> do
+-- 			-- Monster is next to rogue.
+-- 			if length ps == 1
+-- 				then do
+-- 					let g' = strike g a b
+-- 					respond g' as
+-- 				-- Monster is away from rogue.
+-- 				else do
+-- 					-- Move monster one step along path.
+-- 					let p = head ps
+-- 					let g' = moveOccupant g a p
+-- 
+-- 					respond g' as
+-- 		-- No path. Monster will sit.
+-- 		_ -> respond g as
+
+occupied :: Cell -> Bool
+occupied c = case occupant c of
+	Just _ -> True
+	_ -> False
+
+-- The location of every monster that is not a rogue
+monsters :: Game -> [(Int, Int)]
+monsters g = [
+		(x, y)
+		|
+		x <- [0 .. width g - 1],
+		y <- [0 .. height g - 1],
+		occupied $ getCell g (x, y),
+		(x, y) /= rogueLoc g
+	]
+
 loop :: Game -> IO ()
 loop g = do
 	case (win g, lose g) of
-		(True, _) -> blotRecap g "You're safe for now."
+		(True, _) -> blotRecap g "You made it!"
 		(_, True) -> blotRecap g "You were overwhelmed."
 		_ -> do
-			blotLevel $ level g
-
-			mapM blotMonster (monsters g)
-
-			blotMonster $ rogue g
+			-- Display dungeon
+			blotDungeon (dungeon g)
 
 			-- Clear messages
 			blotMessages (replicate 3 $ join "" $ replicate (width g) " ") (height g + messageSpace - 1)
 
+			-- Display messages
 			blotMessages (reverse $ messages g) (height g + messageSpace - 1)
 
 			k <- getKey
@@ -221,19 +320,23 @@ loop g = do
 						else
 							return g
 
+					-- g'' <- respond g' (monsters g')
+					-- 
+					-- loop g'')
+
 					loop g')
 
-generateRow :: Int -> IO [Monster]
-generateRow w = replicateM w (pick (defaultWall:(replicate 10 defaultFloor)))
+generateRow :: Int -> IO [Cell]
+generateRow w = replicateM w (pick (emptyWall:(replicate 10 emptySpace)))
 
-generateSafehouseRow :: Int -> IO [Monster]
+generateSafehouseRow :: Int -> IO [Cell]
 generateSafehouseRow w = do
-	cells <- replicateM (w - 2) (pick (defaultWall:(replicate 10 defaultFloor)))
+	cells <- replicateM (w - 2) (pick (emptyWall:(replicate 10 emptySpace)))
 
-	return $ safehouseEntrance:(cells ++ [safehouseExit])
+	return $ emptySafehouseEntrance:(cells ++ [emptySafehouseExit])
 
-generateLevel :: Int -> Int -> IO [[Monster]]
-generateLevel w h = do
+generateDungeon :: Int -> Int -> IO [[Cell]]
+generateDungeon w h = do
 	as <- replicateM ((h - 1) `div` 2) (generateRow w)
 	b <- generateSafehouseRow w
 	cs <- replicateM ((h - 1) `div` 2) (generateRow w)
@@ -243,53 +346,62 @@ generateLevel w h = do
 commonZombies :: Game -> Int
 commonZombies g = width g `div` 10
 
-generateMonsters :: Game -> [Monster] -> IO Game
-generateMonsters g [] = return g
-generateMonsters g (m:ms) = do
-	let r = (loc . rogue) g
+placeMonster :: Game -> (Int, Int) -> Monster -> Game
+placeMonster g (x, y) r = putCell g (x, y) c'
+	where
+		c = getCell g (x, y)
+		c' = c { occupant = Just r }
 
+placeMonsters :: Game -> [Monster] -> IO Game
+placeMonsters g [] = return g
+placeMonsters g (m:ms) = do
 	x <- pick [0 .. (width g - 1)]
 	y <- pick [0 .. (height g - 1)]
 
-	if r == (x, y) then do
-		generateMonsters g (m:ms)
-	else do
-		let c = cellAt g (x, y)
+	let c = getCell g (x, y)
+	let t = tile c
+	let o = occupant c
+	let o' = case o of
+		(Just _) -> True
+		_ -> False
 
-		case symbol c of
-			" " -> do
-				let placedMonsters = monsters g
-				let locs = map loc placedMonsters
+	-- If cell is occupied or impassible, reroll.
+	if (o' || (terrain t == 1.0))
+		then placeMonsters g (m:ms)
+		else do
+			let g' = placeMonster g (x, y) m
+			placeMonsters g' ms
 
-				if (x, y) `elem` locs then do
-					generateMonsters g (m:ms)
-				else do
-					let m' = m { loc = (x, y) }
-					let g' = g { monsters = m':placedMonsters }
-					generateMonsters g' ms
-			_ -> generateMonsters g (m:ms)
-
-restart :: IO ()
-restart = do
+newGame :: IO Game
+newGame = do
 	w <- getWidth
 	h <- getHeight
 
 	-- Reserve space for messages
 	let h' = h - messageSpace
 
-	lev <- generateLevel w h'
-	let g = defaultGame {
-			width = w,
-			height = h',
-			level = lev,
-			rogue = defaultRogue {
-					loc = (w - 1, h' `div` 2)
-				}
+	let exitLoc = (w - 1, h' `div` 2)
+	let rLoc = exitLoc
+	let entranceLoc = (0, h' `div` 2)
+
+	d <- generateDungeon w h'
+
+	let g = Game {
+			dungeon = d,
+			messages = [],
+			rogueLoc = rLoc,
+			safehouseExitLoc = exitLoc,
+			safehouseEntranceLoc = entranceLoc
 		}
 
-	g' <- generateMonsters g (replicate (commonZombies g) commonZombie)
+	let g' = placeMonster g rLoc defaultRogue
 
-	loop g'
+	return g'
+
+	placeMonsters g' (replicate (commonZombies g) zombie)
+
+restart :: IO ()
+restart = newGame >>= loop
 
 main :: IO ()
 main = do
