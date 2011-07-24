@@ -182,7 +182,7 @@ move g k = do
 			case occupant b of
 				-- Monster in the way
 				Just m -> do
-					return $ strike g (rogueLoc g) (x', y')
+					return $ strike g (x, y) (x', y')
 
 				-- Nothing in the way
 				_ -> if passable g (x', y')
@@ -215,7 +215,9 @@ win :: Game -> Bool
 win g = (safehouseEntranceLoc g) == (rogueLoc g)
 
 lose :: Game -> Bool
-lose g = ((0 ==) . hp . fromJust . occupant . getCell g . rogueLoc) g
+lose g = case (occupant . getCell g . rogueLoc) g of
+	Just r -> ((0 ==) . hp) r
+	_ -> True
 
 blotRecap :: Game -> String -> IO ()
 blotRecap g s = do
@@ -236,16 +238,20 @@ strike g a b = g'
 	where
 		aCell = getCell g a
 		bCell = getCell g b
-		m1 = fromJust $ occupant aCell
-		m2 = fromJust $ occupant bCell
-		m2' = m2 { hp = hp m2 - ap m1 }
-		g' = if (hp m2' <= 0) && (monsterName m2' /= "rogue")
-			then
-				-- Delete monster.
-				putCell (g { messages = ("Killed a " ++ monsterName m2' ++ "."):(voicemail g) }) b (bCell { occupant = Nothing })
-			else
-				-- Reinstert monster.
-				placeMonster (g { messages = ("Hit a " ++ monsterName m2' ++ "."):(voicemail g) }) b m2'
+		m1 = occupant aCell
+		m2 = occupant bCell
+		g' = case (m1, m2) of
+			(Just m1', Just m2') -> if (hp m2'' <= 0) && (monsterName m2'' /= "rogue")
+				then
+					-- Delete monster.
+					putCell (g { messages = ("Killed a " ++ monsterName m2' ++ "."):(voicemail g) }) b (bCell { occupant = Nothing })
+				else
+					-- Reinstert monster.
+					placeMonster (g { messages = ("Hit a " ++ monsterName m2'' ++ "."):(voicemail g) }) b m2''
+						where
+							m2'' = m2' { hp = hp m2' - ap m1' }
+			-- One of the monsters is no longer there.
+			_ -> g
 
 passable :: Game -> Pos -> Bool
 passable g p = (not (occupied c)) && (0.0 == (terrain (tile c)))
@@ -281,24 +287,31 @@ greedyPath g s e
 respond :: Game -> [Pos] -> IO Game
 respond g [] = return g
 respond g (a:as) = do
-	let b = rogueLoc g
+	let r = rogueLoc g
 
-	let m = fromJust $ occupant $ getCell g a
-
-	case greedyPath g a b of
-		Just (_:p:ps) -> do
+	case occupant $ getCell g a of
+		Just m -> do
 			-- Monster is next to rogue.
-			if length ps == 0
+			if dist a r == 1
 				then do
-					let g' = (strike g a b) { messages = ("You were struck by a " ++ monsterName m ++ "."):(voicemail g) }
+					let g' = (strike g a r) { messages = ("You were struck by a " ++ monsterName m ++ "."):(voicemail g) }
 					respond g' as
-				-- Monster is away from rogue.
 				else do
-					-- Move monster one step along path.
-					let g' = moveOccupant g a p
-					respond g' as
-		-- No path. Monster will sit.
-		_ -> respond (g { messages = ("A " ++ monsterName m ++ " sat down."):(voicemail g) }) as
+					creep <- pick [True, False, False]
+
+					if creep
+						then do
+							case greedyPath g a r of
+								Just (_:p:ps) -> do
+									-- Move monster one step along path.
+									let g' = moveOccupant g a p
+									respond g' as
+								-- No path. Monster will sit.
+								_ -> respond (g { messages = ("A " ++ monsterName m ++ " sat down."):(voicemail g) }) as
+						else do
+							respond g as
+		-- Monster is no longer there.
+		_ -> respond g as
 
 occupied :: Cell -> Bool
 occupied c = case occupant c of
@@ -387,14 +400,11 @@ newGame = do
 	-- Reserve space for messages
 	let (w', h') = (w, h - messageSpace)
 
-	-- Shrink screen for pathfinding testing
-	let (w'', h'') = (w' `div` 4, h' `div` 4)
-
-	let exitLoc = (w'' - 1, h'' `div` 2)
+	let exitLoc = (w' - 1, h' `div` 2)
 	let rLoc = exitLoc
-	let entranceLoc = (0, h'' `div` 2)
+	let entranceLoc = (0, h' `div` 2)
 
-	d <- generateDungeon w'' h''
+	d <- generateDungeon w' h'
 
 	let g = Game {
 			dungeon = d,
