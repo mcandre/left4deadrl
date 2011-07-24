@@ -2,6 +2,7 @@ Left4DeadRL - a Left4Dead Roguelike
 
 REQUIREMENTS
 
+ - Haskell
  - containers
 
 EXAMPLE
