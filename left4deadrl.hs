@@ -297,7 +297,7 @@ respond g (a:as) = do
 					let g' = (strike g a r) { messages = ("You were struck by a " ++ monsterName m ++ "."):(voicemail g) }
 					respond g' as
 				else do
-					creep <- pick [True, False, False]
+					creep <- pick zombieCreep
 
 					if creep
 						then do
@@ -371,7 +371,10 @@ generateDungeon w h = do
 	return $ as ++ (b:cs)
 
 commonZombies :: Game -> Int
-commonZombies g = width g * height g `div` 20
+commonZombies g = floor $ sqrt $ fromIntegral $ width g * height g
+
+zombieCreep :: [Bool]
+zombieCreep = [True, False, False, False]
 
 placeMonster :: Game -> Pos -> Monster -> Game
 placeMonster g (x, y) r = putCell g (x, y) c'
