@@ -253,7 +253,7 @@ passable g p = (not (occupied c)) && (0.0 == (terrain (tile c)))
 		c = getCell g p
 
 dist :: Pos -> Pos -> Int
-dist (x1, y1) (x2, y2) = floor $ sqrt $ fromIntegral $ dx * dx + dy * dy -- (x2 - x1) + (y2 - y1) 
+dist (x1, y1) (x2, y2) = floor $ sqrt $ fromIntegral $ dx * dx + dy * dy
 	where
 		dx = x1 - x2
 		dy = y1 - y2
@@ -267,104 +267,15 @@ neighbors g (x, y) = filter (withinBounds g) [
 		(x, y - 1)
 	]
 
--- Greedy pathfinding
-cheapPath :: Game -> Pos -> Pos -> Maybe [Pos]
-cheapPath g s e
+-- For testing purposes
+greedyPath :: Game -> Pos -> Pos -> Maybe [Pos]
+greedyPath g s e
 	| 1 == dist s e = Just [s, e]
 	| otherwise = Just [s, b, e]
 	where
-		b = head $ sortBy (\a b -> compare (dist a e) (dist b e)) $ filter (passable g) $ neighbors g s
-
-data AStar = AStar {
-		game :: Game,
-		start :: Pos,
-		end :: Pos,
-		closed :: [Pos],
-		open :: [Pos],
-		cameFrom :: Map Pos Pos,
-		gScores :: Map Pos Int,
-		hScores :: Map Pos Int,
-		fScores :: Map Pos Int
-	}
-
--- From Wikipedia
--- http://en.wikipedia.org/wiki/A*_search_algorithm
-path :: Game -> Pos -> Pos -> Maybe [Pos]
-path g s e = path' AStar {
-		game = g,
-		start = s,
-		end = e,
-		closed = [],
-		open = [s],
-		cameFrom = empty,
-		gScores = insert s 0 empty,
-		hScores = insert s (h s e) empty,
-		fScores = insert s (h s e) empty
-	}
-	where
-		path' :: AStar -> Maybe [Pos]
-		path' astar
-			| null o = Nothing
-			| x == e = Just $ reconstructPath cF (fromJust $ lookup e cF)
-			| otherwise = path' astar''
-				where
-					g = game astar
-					o = open astar
-					c = closed astar
-					e = end astar
-					cF = cameFrom astar
-
-					x = fst $ head $ sortBy (\(k1, v1) (k2, v2) -> compare v1 v2) $ assocs (fScores astar)
-
-					-- Move x from open to closed.
-					open' = delete x o
-					closed' = c ++ [x]
-
-					astar' = astar { closed = closed', open = open' }
-					astar'' = consider astar' x $ filter (\p -> p `notElem` closed' && passable g p) (neighbors g x)
-
-		reconstructPath :: Map Pos Pos -> Pos -> [Pos]
-		reconstructPath cF p = case lookup p cF of
-			Just p' -> (reconstructPath cF p) ++ [p']
-			_ -> [p]
-
-		consider :: AStar -> Pos -> [Pos] -> AStar
-		consider astar _ [] = astar
-		consider astar a (b:bs) = consider astar' a bs
-			where
-				e = end astar
-				o = open astar
-				cF = cameFrom astar
-				gS = gScores astar
-				hS = hScores astar
-				fS = fScores astar
-
-				tentativeGScore = (fromJust $ lookup a gS) + (dist a b)
-
-				open' = if b `notElem` o
-					then o ++ [b]
-					else o
-
-				tentativeIsBetter = (b `notElem` o) || (tentativeGScore < (fromJust $ lookup b gS))
-
-				cF' = insert b a cF
-				gS' = insert b tentativeGScore gS
-				hS' = insert b (h b e) hS
-				fS' = insert b ((fromJust $ lookup b gS') + (fromJust $ lookup b hS')) fS
-
-				astar' = if tentativeIsBetter
-					then astar {
-								open = open',
-								cameFrom = cF',
-								gScores = gS',
-								hScores = hS',
-								fScores = fS'
-							}
-					else astar
-
-		-- Manhattan
-		h :: Pos -> Pos -> Int
-		h = dist
+		b = case sortBy (\a b -> compare (dist a e) (dist b e)) $ filter (passable g) $ neighbors g s of
+			[] -> e
+			(x:xs) -> x
 
 -- Let each monster respond.
 respond :: Game -> [Pos] -> IO Game
@@ -374,7 +285,7 @@ respond g (a:as) = do
 
 	let m = fromJust $ occupant $ getCell g a
 
-	case cheapPath g a b of
+	case greedyPath g a b of
 		Just (_:p:ps) -> do
 			-- Monster is next to rogue.
 			if length ps == 0
@@ -384,7 +295,7 @@ respond g (a:as) = do
 				-- Monster is away from rogue.
 				else do
 					-- Move monster one step along path.
-					let g' = (moveOccupant g a p) { messages = ("A " ++ monsterName m ++ " moved closer to you."):(voicemail g) }
+					let g' = moveOccupant g a p
 					respond g' as
 		-- No path. Monster will sit.
 		_ -> respond (g { messages = ("A " ++ monsterName m ++ " sat down."):(voicemail g) }) as
@@ -411,13 +322,9 @@ loop g = do
 		(True, _) -> blotRecap g "You made it!"
 		(_, True) -> blotRecap g "You were overwhelmed."
 		_ -> do
-			-- Display dungeon
+			clearScreen
+
 			blotDungeon (dungeon g)
-
-			-- Clear messages
-			blotMessages g (replicate 3 $ join "" $ replicate (width g) " ")
-
-			-- Display messages
 			blotMessages g (reverse $ messages g)
 
 			k <- getKey
@@ -429,13 +336,9 @@ loop g = do
 						else
 							return g
 
-					blotMessages g ["Pathfinding..."]
-
 					g'' <- respond g' (monsters g')
 					
 					loop g'')
-
-					-- loop g')
 
 generateRow :: Int -> IO [Cell]
 generateRow w = replicateM w (pick (emptyWall:(replicate 10 emptySpace)))
@@ -455,7 +358,7 @@ generateDungeon w h = do
 	return $ as ++ (b:cs)
 
 commonZombies :: Game -> Int
-commonZombies g = 2 -- width g `div` 10
+commonZombies g = width g * height g `div` 20
 
 placeMonster :: Game -> Pos -> Monster -> Game
 placeMonster g (x, y) r = putCell g (x, y) c'
@@ -495,7 +398,7 @@ newGame = do
 
 	let g = Game {
 			dungeon = d,
-			messages = [],
+			messages = ["Get to the safehouse on the other side."],
 			rogueLoc = rLoc,
 			safehouseExitLoc = exitLoc,
 			safehouseEntranceLoc = entranceLoc
