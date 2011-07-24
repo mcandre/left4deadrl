@@ -2,10 +2,10 @@ Left4DeadRL - a Left4Dead Roguelike
 
 REQUIREMENTS
 
- - Data.HashMap
+ - containers
 
 EXAMPLE
 
-	$ cabal install hashmap
+	$ cabal install containers
 	$ make
 	$ ./left4deadrl

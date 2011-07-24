@@ -1,13 +1,16 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 -- A Left4Dead Roguelike
 --
 -- Andrew Pennebaker
 
 import HsCharm
+import Prelude hiding (lookup)
 import Maybe (fromJust)
 import Control.Monad (when, replicateM)
 import Data.List (find, delete, sortBy)
 import Data.List.Utils (join)
-import Data.HashMap hiding (map)
+import Data.Map (Map, empty, insert, lookup, assocs)
 import Random (randomRIO)
 
 pick :: [a] -> IO a
@@ -152,28 +155,6 @@ putCell g (x, y) c = g { dungeon = (rowsBefore ++ [curRow'] ++ rowsAfter) }
 		(colsBefore, _:colsAfter) = splitAt x curRow
 		curRow' = colsBefore ++ [c] ++ colsAfter
 
--- -- Assumes x and y are within bounds.
--- attack :: Game -> Pos -> IO Game
--- attack g (x, y) = do
--- 	let c = getCell g (x, y)
--- 	let t = tile c
--- 	let o = occupant c
--- 
--- 	case o of
--- 		-- Monster
--- 		Just m -> do
--- 			let m' = m { hp = hp m - 1 }
--- 			let c' = if hp m' <= 0
--- 				then
--- 					c { occupant = Nothing }
--- 				else
--- 					c { occupant = Just m' }
--- 
--- 			let g' = putCell g (x, y) c'
--- 			return $ g' { messages = ("You hit a " ++ monsterName m ++ "."):(voicemail g) }
--- 		-- Tile
--- 		_ -> return $ g { messages = ("You hit a " ++ tileName t ++ ""):(voicemail g) }
-
 moveOccupant :: Game -> Pos -> Pos -> Game
 moveOccupant g a b = g''
 	where
@@ -204,24 +185,26 @@ move g k = do
 					return $ strike g (rogueLoc g) (x', y')
 
 				-- Nothing in the way
-				_ -> do
-					let t = tile b
-
-					case terrain t of
-						0.0 -> do
-							-- Move rogue from cell a to cell b.
-							let g' = moveOccupant g (x, y) (x', y')
-							return $ g' { rogueLoc = (x', y') }
-						1.0 -> return $ g { messages = ("There is a " ++ tileName t ++ " in the way."):(voicemail g) }
+				_ -> if passable g (x', y')
+					then do
+						-- Move rogue from cell a to cell b.
+						let g' = moveOccupant g (x, y) (x', y')
+						return $ g' { rogueLoc = (x', y') }
+					else do
+						let t = tile b
+						return $ g { messages = ("There is a " ++ tileName t ++ " in the way."):(voicemail g) }
 		else
 			return $ g { messages = "Edge of the world.":(voicemail g) }
 
-blotMessages :: [String] -> Int -> IO ()
-blotMessages [] _ = return ()
-blotMessages (m:ms) row = do
-	moveCursor 0 row
-	hCenterString m
-	blotMessages ms (row - 1)
+blotMessages :: Game -> [String] -> IO ()
+blotMessages g ms = blotMessages' ms (height g + messageSpace - 1)
+	where
+		blotMessages' :: [String] -> Int -> IO ()
+		blotMessages' [] _ = return ()
+		blotMessages' (m:ms) row = do
+			moveCursor 0 row
+			hCenterString m
+			blotMessages' ms (row - 1)
 
 blotDungeon :: [[Cell]] -> IO ()
 blotDungeon g = do
@@ -264,52 +247,147 @@ strike g a b = g'
 				-- Reinstert monster.
 				placeMonster (g { messages = ("Hit a " ++ monsterName m2' ++ "."):(voicemail g) }) b m2'
 
--- -- Ignore corner adjacencies
--- adjacencies :: Game -> Pos -> [Pos]
--- adjacencies g (x, y) = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
--- 
--- manhattan :: Pos -> Pos -> Int
--- manhattan = floor $ sqrt $ fromIntegral $ dx * dx + dy * dy
--- 	where
--- 		dx = fst p1 - fst p2
--- 		dy = snd p1 - snd p2
--- 
--- -- Based on A* Pathfinding for Beginners
--- -- http://www.policyalmanac.org/games/aStarTutorial.htm
--- path :: Game -> Pos -> Pos -> [Pos]
--- path g a b = path' g a b [] [a] (HashMap Pos Pos) (insert a 0 (HashMap Pos Int)) (insert a (manhattan a b) (HashMap Pos Int)) (insert a (manhattan a b) (HashMap Pos Int))
--- 	where
--- 		path' :: Game -> Pos -> Pos -> [Pos] -> [Pos] -> HashMap Pos Pos -> HashMap Pos Int -> HashMap Pos Int -> HashMap Pos Int -> [Pos]
--- 		path' g a b closed open cameFrom gScores hScores fScores
--- 			| not $ null open = -- ...
--- 				where
--- 					x = sortBy ((\k, \v) -> v) $ assoc fScores
--- 					
--- 
--- -- Let each monster respond.
--- respond :: Game -> [Pos] -> IO Game
--- respond g [] = return g
--- respond g (a:as) = do
--- 	let b = rogueLoc g
--- 
--- 	let m = fromJust $ occupant $ getCell g a
--- 
--- 	case path g a b of
--- 		Just ps -> do
--- 			-- Monster is next to rogue.
--- 			if length ps == 1
--- 				then do
--- 					let g' = strike g a b
--- 					respond g' as
--- 				-- Monster is away from rogue.
--- 				else do
--- 					-- Move monster one step along path.
--- 					let p = head ps
--- 					let g' = moveOccupant g a p
--- 
--- 					respond g' as
--- 		-- No path. Monster will sit.
--- 		_ -> respond g as
+passable :: Game -> Pos -> Bool
+passable g p = (not (occupied c)) && (0.0 == (terrain (tile c)))
+	where
+		c = getCell g p
+
+dist :: Pos -> Pos -> Int
+dist (x1, y1) (x2, y2) = floor $ sqrt $ fromIntegral $ dx * dx + dy * dy -- (x2 - x1) + (y2 - y1) 
+	where
+		dx = x1 - x2
+		dy = y1 - y2
+
+-- Ignore corner adjacencies
+neighbors :: Game -> Pos -> [Pos]
+neighbors g (x, y) = filter (withinBounds g) [
+		(x + 1, y),
+		(x - 1, y),
+		(x, y + 1),
+		(x, y - 1)
+	]
+
+-- Greedy pathfinding
+cheapPath :: Game -> Pos -> Pos -> Maybe [Pos]
+cheapPath g s e
+	| 1 == dist s e = Just [s, e]
+	| otherwise = Just [s, b, e]
+	where
+		b = head $ sortBy (\a b -> compare (dist a e) (dist b e)) $ filter (passable g) $ neighbors g s
+
+data AStar = AStar {
+		game :: Game,
+		start :: Pos,
+		end :: Pos,
+		closed :: [Pos],
+		open :: [Pos],
+		cameFrom :: Map Pos Pos,
+		gScores :: Map Pos Int,
+		hScores :: Map Pos Int,
+		fScores :: Map Pos Int
+	}
+
+-- From Wikipedia
+-- http://en.wikipedia.org/wiki/A*_search_algorithm
+path :: Game -> Pos -> Pos -> Maybe [Pos]
+path g s e = path' AStar {
+		game = g,
+		start = s,
+		end = e,
+		closed = [],
+		open = [s],
+		cameFrom = empty,
+		gScores = insert s 0 empty,
+		hScores = insert s (h s e) empty,
+		fScores = insert s (h s e) empty
+	}
+	where
+		path' :: AStar -> Maybe [Pos]
+		path' astar
+			| null o = Nothing
+			| x == e = Just $ reconstructPath cF (fromJust $ lookup e cF)
+			| otherwise = path' astar''
+				where
+					g = game astar
+					o = open astar
+					c = closed astar
+					e = end astar
+					cF = cameFrom astar
+
+					x = fst $ head $ sortBy (\(k1, v1) (k2, v2) -> compare v1 v2) $ assocs (fScores astar)
+
+					-- Move x from open to closed.
+					open' = delete x o
+					closed' = c ++ [x]
+
+					astar' = astar { closed = closed', open = open' }
+					astar'' = consider astar' x $ filter (\p -> p `notElem` closed' && passable g p) (neighbors g x)
+
+		reconstructPath :: Map Pos Pos -> Pos -> [Pos]
+		reconstructPath cF p = case lookup p cF of
+			Just p' -> (reconstructPath cF p) ++ [p']
+			_ -> [p]
+
+		consider :: AStar -> Pos -> [Pos] -> AStar
+		consider astar _ [] = astar
+		consider astar a (b:bs) = consider astar' a bs
+			where
+				e = end astar
+				o = open astar
+				cF = cameFrom astar
+				gS = gScores astar
+				hS = hScores astar
+				fS = fScores astar
+
+				tentativeGScore = (fromJust $ lookup a gS) + (dist a b)
+
+				open' = if b `notElem` o
+					then o ++ [b]
+					else o
+
+				tentativeIsBetter = (b `notElem` o) || (tentativeGScore < (fromJust $ lookup b gS))
+
+				cF' = insert b a cF
+				gS' = insert b tentativeGScore gS
+				hS' = insert b (h b e) hS
+				fS' = insert b ((fromJust $ lookup b gS') + (fromJust $ lookup b hS')) fS
+
+				astar' = if tentativeIsBetter
+					then astar {
+								open = open',
+								cameFrom = cF',
+								gScores = gS',
+								hScores = hS',
+								fScores = fS'
+							}
+					else astar
+
+		-- Manhattan
+		h :: Pos -> Pos -> Int
+		h = dist
+
+-- Let each monster respond.
+respond :: Game -> [Pos] -> IO Game
+respond g [] = return g
+respond g (a:as) = do
+	let b = rogueLoc g
+
+	let m = fromJust $ occupant $ getCell g a
+
+	case cheapPath g a b of
+		Just (_:p:ps) -> do
+			-- Monster is next to rogue.
+			if length ps == 0
+				then do
+					let g' = (strike g a b) { messages = ("You were struck by a " ++ monsterName m ++ "."):(voicemail g) }
+					respond g' as
+				-- Monster is away from rogue.
+				else do
+					-- Move monster one step along path.
+					let g' = (moveOccupant g a p) { messages = ("A " ++ monsterName m ++ " moved closer to you."):(voicemail g) }
+					respond g' as
+		-- No path. Monster will sit.
+		_ -> respond (g { messages = ("A " ++ monsterName m ++ " sat down."):(voicemail g) }) as
 
 occupied :: Cell -> Bool
 occupied c = case occupant c of
@@ -337,10 +415,10 @@ loop g = do
 			blotDungeon (dungeon g)
 
 			-- Clear messages
-			blotMessages (replicate 3 $ join "" $ replicate (width g) " ") (height g + messageSpace - 1)
+			blotMessages g (replicate 3 $ join "" $ replicate (width g) " ")
 
 			-- Display messages
-			blotMessages (reverse $ messages g) (height g + messageSpace - 1)
+			blotMessages g (reverse $ messages g)
 
 			k <- getKey
 
@@ -351,11 +429,13 @@ loop g = do
 						else
 							return g
 
-					-- g'' <- respond g' (monsters g')
-					-- 
-					-- loop g'')
+					blotMessages g ["Pathfinding..."]
 
-					loop g')
+					g'' <- respond g' (monsters g')
+					
+					loop g'')
+
+					-- loop g')
 
 generateRow :: Int -> IO [Cell]
 generateRow w = replicateM w (pick (emptyWall:(replicate 10 emptySpace)))
@@ -375,7 +455,7 @@ generateDungeon w h = do
 	return $ as ++ (b:cs)
 
 commonZombies :: Game -> Int
-commonZombies g = width g `div` 10
+commonZombies g = 2 -- width g `div` 10
 
 placeMonster :: Game -> Pos -> Monster -> Game
 placeMonster g (x, y) r = putCell g (x, y) c'
@@ -389,15 +469,8 @@ placeMonsters g (m:ms) = do
 	x <- pick [0 .. (width g - 1)]
 	y <- pick [0 .. (height g - 1)]
 
-	let c = getCell g (x, y)
-	let t = tile c
-	let o = occupant c
-	let o' = case o of
-		(Just _) -> True
-		_ -> False
-
 	-- If cell is occupied or impassible, reroll.
-	if (o' || (terrain t == 1.0))
+	if not (passable g (x, y))
 		then placeMonsters g (m:ms)
 		else do
 			let g' = placeMonster g (x, y) m
@@ -409,13 +482,16 @@ newGame = do
 	h <- getHeight
 
 	-- Reserve space for messages
-	let h' = h - messageSpace
+	let (w', h') = (w, h - messageSpace)
 
-	let exitLoc = (w - 1, h' `div` 2)
+	-- Shrink screen for pathfinding testing
+	let (w'', h'') = (w' `div` 4, h' `div` 4)
+
+	let exitLoc = (w'' - 1, h'' `div` 2)
 	let rLoc = exitLoc
-	let entranceLoc = (0, h' `div` 2)
+	let entranceLoc = (0, h'' `div` 2)
 
-	d <- generateDungeon w h'
+	d <- generateDungeon w'' h''
 
 	let g = Game {
 			dungeon = d,
