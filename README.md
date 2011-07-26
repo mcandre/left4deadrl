@@ -4,10 +4,11 @@ REQUIREMENTS
 
  - Haskell
  - containers
+ - random-extras
 
 EXAMPLE
 
-	$ cabal install containers
+	$ cabal install containers random-extras
 	$ make
 	$ ./left4deadrl
 	    #    #  #                      #        # #   #                 #         # 
