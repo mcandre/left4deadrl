@@ -8,7 +8,6 @@ REQUIREMENTS
 
 EXAMPLE
 
-	$ cabal install containers random-extras
 	$ make
 	$ ./left4deadrl
 	    #    #  #                      #        # #   #                 #         # 
