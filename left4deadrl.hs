@@ -9,7 +9,7 @@ import Data.Random
 import Data.Random.Source.DevRandom
 import Data.Random.Extras
 import Prelude hiding (lookup)
-import Maybe (fromJust)
+import Data.Maybe (fromJust)
 import Control.Monad (when, replicateM)
 import Data.List (find, delete, sortBy)
 import Data.List.Utils (join)
@@ -143,11 +143,11 @@ withinBounds g (x, y) = (x >= 0) && (x <= width g - 1) && (y >= 0) && (y <= heig
 
 -- Assumes x and y are within bounds.
 getCell :: Game -> Pos -> Cell
-getCell g (x, y) = ((dungeon g) !! y) !! x
+getCell g (x, y) = (dungeon g !! y) !! x
 
 -- Assumes x and y are within bounds.
 putCell :: Game -> Pos -> Cell -> Game
-putCell g (x, y) c = g { dungeon = (rowsBefore ++ [curRow'] ++ rowsAfter) }
+putCell g (x, y) c = g { dungeon = rowsBefore ++ [curRow'] ++ rowsAfter }
 	where
 		rows = dungeon g
 		(rowsBefore, curRow:rowsAfter) = splitAt y rows
@@ -180,8 +180,7 @@ move g k = do
 
 			case occupant b of
 				-- Monster in the way
-				Just m -> do
-					return $ strike g (x, y) (x', y')
+				Just m -> return $ strike g (x, y) (x', y')
 
 				-- Nothing in the way
 				_ -> if passable g (x', y')
@@ -191,9 +190,9 @@ move g k = do
 						return $ g' { rogueLoc = (x', y') }
 					else do
 						let t = tile b
-						return $ g { messages = ("There is a " ++ tileName t ++ " in the way."):(voicemail g) }
+						return $ g { messages = ("There is a " ++ tileName t ++ " in the way."):voicemail g }
 		else
-			return $ g { messages = "Edge of the world.":(voicemail g) }
+			return $ g { messages = "Edge of the world.":voicemail g }
 
 blotMessages :: Game -> [String] -> IO ()
 blotMessages g ms = blotMessages' ms (height g + messageSpace - 1)
@@ -208,10 +207,10 @@ blotMessages g ms = blotMessages' ms (height g + messageSpace - 1)
 blotDungeon :: [[Cell]] -> IO ()
 blotDungeon g = do
 	moveCursor 0 0
-	(blotString . join "\n" . (map (join "" . (map show)))) g
+	(blotString . join "\n" . map (join "" . map show)) g
 
 win :: Game -> Bool
-win g = (safehouseEntranceLoc g) == (rogueLoc g)
+win g = safehouseEntranceLoc g == rogueLoc g
 
 lose :: Game -> Bool
 lose g = case (occupant . getCell g . rogueLoc) g of
@@ -243,17 +242,17 @@ strike g a b = g'
 			(Just m1', Just m2') -> if (hp m2'' <= 0) && (monsterName m2'' /= "rogue")
 				then
 					-- Delete monster.
-					putCell (g { messages = ("Killed a " ++ monsterName m2' ++ "."):(voicemail g) }) b (bCell { occupant = Nothing })
+					putCell (g { messages = ("Killed a " ++ monsterName m2' ++ "."):voicemail g }) b (bCell { occupant = Nothing })
 				else
 					-- Reinstert monster.
-					placeMonster (g { messages = ("Hit a " ++ monsterName m2'' ++ "."):(voicemail g) }) b m2''
+					placeMonster (g { messages = ("Hit a " ++ monsterName m2'' ++ "."):voicemail g }) b m2''
 						where
 							m2'' = m2' { hp = hp m2' - ap m1' }
 			-- One of the monsters is no longer there.
 			_ -> g
 
 passable :: Game -> Pos -> Bool
-passable g p = (not (occupied c)) && (0.0 == (terrain (tile c)))
+passable g p = not (occupied c) && (0.0 == terrain (tile c))
 	where
 		c = getCell g p
 
@@ -289,26 +288,22 @@ respond g (a:as) = do
 	let r = rogueLoc g
 
 	case occupant $ getCell g a of
-		Just m -> do
-			-- Monster is next to rogue.
-			if dist a r == 1
-				then do
-					let g' = (strike g a r) { messages = ("You were struck by a " ++ monsterName m ++ "."):(voicemail g) }
-					respond g' as
-				else do
-					creep <- runRVar (choice zombieCreep) DevRandom
+		Just m -> if dist a r == 1 -- Monster is next to rogue.
+			then do
+				let g' = (strike g a r) { messages = ("You were struck by a " ++ monsterName m ++ "."):voicemail g }
+				respond g' as
+			else do
+				creep <- runRVar (choice zombieCreep) DevRandom
 
-					if creep
-						then do
-							case greedyPath g a r of
-								Just (_:p:ps) -> do
-									-- Move monster one step along path.
-									let g' = moveOccupant g a p
-									respond g' as
-								-- No path. Monster will sit.
-								_ -> respond (g { messages = ("A " ++ monsterName m ++ " sat down."):(voicemail g) }) as
-						else do
-							respond g as
+				if creep
+					then case greedyPath g a r of
+						Just (_:p:ps) -> do
+							-- Move monster one step along path.
+							let g' = moveOccupant g a p
+							respond g' as
+						-- No path. Monster will sit.
+						_ -> respond (g { messages = ("A " ++ monsterName m ++ " sat down."):voicemail g }) as
+					else respond g as
 		-- Monster is no longer there.
 		_ -> respond g as
 
@@ -329,35 +324,34 @@ monsters g = [
 	]
 
 loop :: Game -> IO ()
-loop g = do
-	case (win g, lose g) of
-		(True, _) -> blotRecap g "You made it!"
-		(_, True) -> blotRecap g "You were overwhelmed."
-		_ -> do
-			clearScreen
+loop g = case (win g, lose g) of
+	(True, _) -> blotRecap g "You made it!"
+	(_, True) -> blotRecap g "You were overwhelmed."
+	_ -> do
+		clearScreen
 
-			blotDungeon (dungeon g)
-			blotMessages g (reverse $ messages g)
+		blotDungeon (dungeon g)
+		blotMessages g (reverse $ messages g)
 
-			k <- getKey
+		k <- getKey
 
-			when (k `notElem` [KeyEscape, KeyQ])
-				(do
-					g' <- if k `elem` [KeyUp, KeyDown, KeyRight, KeyLeft] then
-							move g k
-						else
-							return g
+		when (k `notElem` [KeyEscape, KeyQ])
+			(do
+				g' <- if k `elem` [KeyUp, KeyDown, KeyRight, KeyLeft] then
+						move g k
+					else
+						return g
 
-					g'' <- respond g' (monsters g')
-					
-					loop g'')
+				g'' <- respond g' (monsters g')
+				
+				loop g'')
 
 generateRow :: Int -> IO [Cell]
-generateRow w = (replicateM w . flip runRVar DevRandom . choice) (emptyWall:(replicate 10 emptySpace))
+generateRow w = (replicateM w . flip runRVar DevRandom . choice) (emptyWall:replicate 10 emptySpace)
 
 generateSafehouseRow :: Int -> IO [Cell]
 generateSafehouseRow w = do
-	cells <- (replicateM (w - 2) . flip runRVar DevRandom . choice) (emptyWall:(replicate 10 emptySpace))
+	cells <- (replicateM (w - 2) . flip runRVar DevRandom . choice) (emptyWall:replicate 10 emptySpace)
 
 	return $ emptySafehouseEntrance:(cells ++ [emptySafehouseExit])
 
