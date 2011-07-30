@@ -21,61 +21,68 @@ int pos_y;
 
 int get_width() {
 	struct winsize ws;
-	ioctl(0, TIOCGWINSZ, &ws);
+	(void) ioctl(0, TIOCGWINSZ, &ws);
 
-	return ws.ws_col;
+	return (int) ws.ws_col;
 }
 
 int get_height() {
 	struct winsize ws;
-	ioctl(0, TIOCGWINSZ, &ws);
+	(void) ioctl(0, TIOCGWINSZ, &ws);
 
-	return ws.ws_row;
+	return (int) ws.ws_row;
 }
 
-void cursor_off() { printf("\033[?25l"); fflush(stdout); }
-void cursor_on() { printf("\033[?25h"); fflush(stdout); }
+void cursor_off() {
+	printf("\033[?25l");
+	(void) fflush(stdout);
+}
+
+void cursor_on() {
+	printf("\033[?25h");
+	(void) fflush(stdout);
+}
 
 void echo_off() {
 	struct termios term;
-	tcgetattr(fileno(stdout), &term);
+	(void) tcgetattr(fileno(stdout), &term);
 	term.c_lflag &= ~ECHO;
-	tcsetattr(fileno(stdout), TCSAFLUSH, &term);
+	(void) tcsetattr(fileno(stdout), TCSAFLUSH, &term);
 }
 
 void echo_on() {
 	struct termios term;
-	tcgetattr(fileno(stdout), &term);
+	(void) tcgetattr(fileno(stdout), &term);
 	term.c_lflag |= ECHO;
-	tcsetattr(fileno(stdout), TCSAFLUSH, &term);
+	(void) tcsetattr(fileno(stdout), TCSAFLUSH, &term);
 }
 
 void raw_on() {
 	struct termios term;
-	tcgetattr(fileno(stdout), &term);
+	(void) tcgetattr(fileno(stdout), &term);
 	term.c_lflag &= ~ICANON;
-	tcsetattr(fileno(stdout), TCSAFLUSH, &term);
+	(void) tcsetattr(fileno(stdout), TCSAFLUSH, &term);
 }
 
 void raw_off() {
 	struct termios term;
-	tcgetattr(fileno(stdout), &term);
+	(void) tcgetattr(fileno(stdout), &term);
 	term.c_lflag |= ICANON;
-	tcsetattr(fileno(stdout), TCSAFLUSH, &term);
+	(void) tcsetattr(fileno(stdout), TCSAFLUSH, &term);
 }
 
 void blocking_off() {
 	struct termios term;
-	tcgetattr(fileno(stdout), &term);
-	term.c_cc[VMIN] = 0;
-	tcsetattr(fileno(stdout), TCSAFLUSH, &term);
+	(void) tcgetattr(fileno(stdout), &term);
+	term.c_cc[VMIN] = (cc_t) 0;
+	(void) tcsetattr(fileno(stdout), TCSAFLUSH, &term);
 }
 
 void blocking_on() {
 	struct termios term;
-	tcgetattr(fileno(stdout), &term);
-	term.c_cc[VMIN] = 1;
-	tcsetattr(fileno(stdout), TCSAFLUSH, &term);
+	(void) tcgetattr(fileno(stdout), &term);
+	term.c_cc[VMIN] = (cc_t) 1;
+	(void) tcsetattr(fileno(stdout), TCSAFLUSH, &term);
 }
 
 int get_x() {
@@ -94,7 +101,7 @@ void move_cursor(int x, int y) {
 	pos_x = x;
 	pos_y = y;
 	printf("\033[%d;%dH", y + 1, x + 1);
-	fflush(stdout);
+	(void) fflush(stdout);
 }
 
 void blot_char(char c) {
@@ -103,30 +110,33 @@ void blot_char(char c) {
 		move_cursor(0, pos_y);
 	}
 	else {
-		putchar(c);
-		fflush(stdout);
+		(void) putchar(c);
+		(void) fflush(stdout);
 		pos_x++;
 	}
 }
 
 void blot_string(char *s) {
 	int i;
-	for (i = 0; i < strlen(s); i++) {
+	for (i = 0; i < (int) strlen(s); i++) {
 		blot_char(s[i]);
 	}
 }
 
 void hcenter_string(char *s) {
-	move_cursor((get_width() - strlen(s))/2, pos_y);
+	move_cursor((get_width() - (int) strlen(s))/2, pos_y);
 	blot_string(s);
 }
 
 void vcenter_string(char *s) {
-	move_cursor((get_width() - strlen(s))/2 - 1, get_height()/2 - 1);
+	move_cursor((get_width() - (int) strlen(s))/2 - 1, get_height()/2 - 1);
 	blot_string(s);
 }
 
-void clear_screen() { printf("\033[2J"); fflush(stdout); }
+void clear_screen() {
+	printf("\033[2J");
+	(void) fflush(stdout);
+}
 
 void handle_signal(int signal) {
 	end_charm();
@@ -134,7 +144,7 @@ void handle_signal(int signal) {
 }
 
 void start_charm() {
-	signal(SIGINT, handle_signal);
+	(void) signal(SIGINT, handle_signal);
 
 	cursor_off();
 	echo_off();
@@ -279,12 +289,19 @@ key parse_key(char *buf) {
 }
 
 key get_key() {
-	char *buf = (char *) malloc(3 * sizeof(char));
-	buf[0] = 0;
-	buf[1] = 0;
-	buf[2] = 0;
+	int i;
 
-	int i = 0;
+	char *buf = (char *) malloc(3 * sizeof(char));
+
+	if (buf == NULL) {
+		return KEY_UNKNOWN;
+	}
+
+	buf[0] = '\0';
+	buf[1] = '\0';
+	buf[2] = '\0';
+
+	i = 0;
 
 	char c;
 
