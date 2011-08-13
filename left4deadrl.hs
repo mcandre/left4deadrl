@@ -57,7 +57,10 @@ data Monster = Monster {
 		ap :: Int,
 
 		-- Health points
-		hp :: Int
+		hp :: Int,
+
+		-- How far the monster can see
+		horizon :: Int
 	}
 
 instance Show Tile where
@@ -128,14 +131,16 @@ defaultRogue = Monster {
 		monsterName = "rogue",
 		monsterSymbol = "@",
 		ap = 1,
-		hp = 10
+		hp = 10,
+		horizon = 10
 	}
 
 zombie = Monster {
 		monsterName = "zombie",
 		monsterSymbol = "z",
 		ap = 1,
-		hp = 1
+		hp = 1,
+		horizon = 5
 	}
 
 withinBounds :: Game -> Pos -> Bool
@@ -204,10 +209,28 @@ blotMessages g ms = blotMessages' ms (height g + messageSpace - 1)
 			hCenterString m
 			blotMessages' ms (row - 1)
 
-blotDungeon :: [[Cell]] -> IO ()
+blotCell :: Game -> Pos -> IO ()
+blotCell g (x, y) = do
+	let c = getCell g (x, y)
+
+	moveCursor x y
+	(blotString . show) c
+
+blotDungeon :: Game -> IO ()
 blotDungeon g = do
-	moveCursor 0 0
-	(blotString . join "\n" . map (join "" . map show)) g
+	let d = dungeon g
+	let rLoc = rogueLoc g
+	let r = fromJust $ occupant $ getCell g rLoc
+	let fog = [
+			(x, y) |
+			x <- [0 .. width g - 1],
+			y <- [0 .. height g - 1],
+			dist rLoc (x, y) < horizon r || safehouseEntranceLoc g == (x, y)
+		]
+
+	mapM (blotCell g) fog
+
+	return ()
 
 win :: Game -> Bool
 win g = safehouseEntranceLoc g == rogueLoc g
@@ -330,7 +353,7 @@ loop g = case (win g, lose g) of
 	_ -> do
 		clearScreen
 
-		blotDungeon (dungeon g)
+		blotDungeon g
 		blotMessages g (reverse $ messages g)
 
 		k <- getKey
