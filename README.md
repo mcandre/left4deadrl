@@ -1,12 +1,12 @@
-Left4DeadRL - a Left4Dead Roguelike
+# Left4DeadRL - a Left4Dead Roguelike
 
-REQUIREMENTS
+## REQUIREMENTS
 
- - Haskell
+ - [Haskell](http://haskell.org/)
  - containers
  - random-extras
 
-EXAMPLE
+## EXAMPLE
 
 	$ make
 	$ ./left4deadrl
