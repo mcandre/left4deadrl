@@ -4,7 +4,7 @@
 
  - [Haskell](http://haskell.org/)
  - containers
- - random-extras
+ - random-fu
 
 ## EXAMPLE
 

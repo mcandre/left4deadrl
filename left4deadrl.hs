@@ -7,7 +7,7 @@
 import HsCharm
 import Data.Random
 import Data.Random.Source.DevRandom
-import Data.Random.Extras
+import Data.Random.List (randomElement)
 import Prelude hiding (lookup)
 import Data.Maybe (fromJust)
 import Control.Monad (when, replicateM)
@@ -316,7 +316,7 @@ respond g (a:as) = do
 				let g' = (strike g a r) { messages = ("You were struck by a " ++ monsterName m ++ "."):voicemail g }
 				respond g' as
 			else do
-				creep <- runRVar (choice zombieCreep) DevRandom
+				creep <- runRVar (randomElement zombieCreep) DevRandom
 
 				if creep
 					then case greedyPath g a r of
@@ -370,11 +370,11 @@ loop g = case (win g, lose g) of
 				loop g'')
 
 generateRow :: Int -> IO [Cell]
-generateRow w = (replicateM w . flip runRVar DevRandom . choice) (emptyWall:replicate 10 emptySpace)
+generateRow w = (replicateM w . flip runRVar DevRandom . randomElement) (emptyWall:replicate 10 emptySpace)
 
 generateSafehouseRow :: Int -> IO [Cell]
 generateSafehouseRow w = do
-	cells <- (replicateM (w - 2) . flip runRVar DevRandom . choice) (emptyWall:replicate 10 emptySpace)
+	cells <- (replicateM (w - 2) . flip runRVar DevRandom . randomElement) (emptyWall:replicate 10 emptySpace)
 
 	return $ emptySafehouseEntrance:(cells ++ [emptySafehouseExit])
 
@@ -401,8 +401,8 @@ placeMonster g (x, y) r = putCell g (x, y) c'
 placeMonsters :: Game -> [Monster] -> IO Game
 placeMonsters g [] = return g
 placeMonsters g (m:ms) = do
-	x <- runRVar (choice [0 .. width g - 1]) DevRandom
-	y <- runRVar (choice [0 .. height g - 1]) DevRandom
+	x <- runRVar (randomElement [0 .. width g - 1]) DevRandom
+	y <- runRVar (randomElement [0 .. height g - 1]) DevRandom
 
 	-- If cell is occupied or impassible, reroll.
 	if not (passable g (x, y))
