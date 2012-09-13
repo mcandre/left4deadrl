@@ -3,8 +3,9 @@
 ## REQUIREMENTS
 
  - [Haskell](http://haskell.org/)
- - containers
+ - MissingH
  - random-fu
+ - Windows users must install either [make](https://github.com/mcandre/make-win) or [MinGW](http://www.mingw.org/)
 
 ## EXAMPLE
 
