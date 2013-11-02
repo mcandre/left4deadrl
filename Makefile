@@ -1,7 +1,7 @@
 all: left4deadrl
 
 left4deadrl: left4deadrl.hs hscharm.hs charm.c charm.h
-	ghc --make -fforce-recomp -o left4deadrl left4deadrl.hs hscharm.hs charm.c charm.h -package MissingH -package random-fu
+	ghc --make -fforce-recomp -o left4deadrl left4deadrl.hs hscharm.hs charm.c charm.h -package MissingH -package random-fu -Wall
 
 lint:
 	hlint .

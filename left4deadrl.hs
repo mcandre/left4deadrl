@@ -79,53 +79,61 @@ messageSpace = 3
 voicemail :: Game -> [String]
 voicemail = take (messageSpace - 1) . messages
 
+space :: Tile
 space = Tile {
   tileName = "floor",
   tileSymbol = " ",
   terrain = 0.0
   }
 
+emptyCell :: Cell
 emptyCell = Cell {
   tile = space,
   occupant = Nothing
   }
 
+emptySpace :: Cell
 emptySpace = emptyCell {
   tile = space
   }
 
+wall :: Tile
 wall = Tile {
   tileName = "wall",
   tileSymbol = "#",
   terrain = 1.0
   }
 
+emptyWall :: Cell
 emptyWall = emptyCell {
   tile = wall
   }
 
--- Player starts here
+safehouseExit :: Tile
 safehouseExit = Tile {
   tileName = "safehouse exit",
   tileSymbol = "]",
   terrain = 0.0
   }
 
+emptySafehouseExit :: Cell
 emptySafehouseExit = emptyCell {
   tile = safehouseExit
   }
 
--- Player must get here
+safehouseEntrance :: Tile
 safehouseEntrance = Tile {
   tileName = "safehouse entrance",
   tileSymbol = "[",
   terrain = 0.0
   }
 
+emptySafehouseEntrance :: Cell
 emptySafehouseEntrance = emptyCell {
   tile = safehouseEntrance
   }
 
+defaultRogue :: Monster
 defaultRogue = Monster {
   monsterName = "rogue",
   monsterSymbol = "@",
@@ -134,6 +142,7 @@ defaultRogue = Monster {
   horizon = 10
   }
 
+zombie :: Monster
 zombie = Monster {
   monsterName = "zombie",
   monsterSymbol = "z",
@@ -177,6 +186,7 @@ move g k = do
         KeyDown -> (x, y + 1)
         KeyRight -> (x + 1, y)
         KeyLeft -> (x - 1, y)
+        _ -> (x, y)
 
   if withinBounds g (x', y')
     then do
@@ -184,7 +194,7 @@ move g k = do
 
       case occupant b of
         -- Monster in the way
-        Just m -> return $ strike g (x, y) (x', y')
+        Just _ -> return $ strike g (x, y) (x', y')
 
         -- Nothing in the way
         _ -> if passable g (x', y')
@@ -203,10 +213,10 @@ blotMessages g ms = blotMessages' ms (height g + messageSpace - 1)
   where
     blotMessages' :: [String] -> Int -> IO ()
     blotMessages' [] _ = return ()
-    blotMessages' (m:ms) row = do
+    blotMessages' (m:ms') row = do
       moveCursor 0 row
       hCenterString m
-      blotMessages' ms (row - 1)
+      blotMessages' ms' (row - 1)
 
 blotCell :: Game -> Pos -> IO ()
 blotCell g (x, y) = do
@@ -217,7 +227,6 @@ blotCell g (x, y) = do
 
 blotDungeon :: Game -> IO ()
 blotDungeon g = do
-  let d = dungeon g
   let rLoc = rogueLoc g
   let r = fromJust $ occupant $ getCell g rLoc
   let fog = [
@@ -227,7 +236,7 @@ blotDungeon g = do
         dist rLoc (x, y) < horizon r || safehouseEntranceLoc g == (x, y)
         ]
 
-  mapM (blotCell g) fog
+  mapM_ (blotCell g) fog
 
   return ()
 
@@ -301,7 +310,7 @@ greedyPath g s e
   where
     b = case sortBy (\a b -> compare (dist a e) (dist b e)) $ filter (passable g) $ neighbors g s of
       [] -> e
-      (x:xs) -> x
+      (x:_) -> x
 
 -- Let each monster respond.
 respond :: Game -> [Pos] -> IO Game
@@ -319,7 +328,7 @@ respond g (a:as) = do
 
                 if creep
                   then case greedyPath g a r of
-                    Just (_:p:ps) -> do
+                    Just (_:p:_) -> do
                       -- Move monster one step along path.
                       let g' = moveOccupant g a p
                       respond g' as
@@ -432,8 +441,6 @@ newGame = do
         }
 
   let g' = placeMonster g rLoc defaultRogue
-
-  return g'
 
   placeMonsters g' (replicate (commonZombies g) zombie)
 
