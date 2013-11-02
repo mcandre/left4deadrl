@@ -6,13 +6,10 @@
 
 import HsCharm
 import Data.Random
-import Data.Random.Source.IO
 import Prelude hiding (lookup)
 import Data.Maybe (fromJust)
 import Control.Monad (when, replicateM)
-import Data.List (find, delete, sortBy)
-import Data.List.Utils (join)
-import Data.Map (Map, empty, insert, lookup, assocs)
+import Data.List (sortBy)
 
 type Pos = (Int, Int)
 
@@ -306,9 +303,9 @@ neighbors g (x, y) = filter (withinBounds g) [
 greedyPath :: Game -> Pos -> Pos -> Maybe [Pos]
 greedyPath g s e
   | 1 == dist s e = Just [s, e]
-  | otherwise = Just [s, b, e]
+  | otherwise = Just [s, b', e]
   where
-    b = case sortBy (\a b -> compare (dist a e) (dist b e)) $ filter (passable g) $ neighbors g s of
+    b' = case sortBy (\a b -> compare (dist a e) (dist b e)) $ filter (passable g) $ neighbors g s of
       [] -> e
       (x:_) -> x
 
