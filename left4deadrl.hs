@@ -21,6 +21,9 @@ data Game = Game {
   safehouseEntranceLoc :: Pos
   }
 
+sqrtInt :: Int -> Int
+sqrtInt = floor . sqrt . fromIntegral
+
 -- Assumes each row is the same length
 width :: Game -> Int
 width = length . (!! 0) . dungeon
@@ -285,7 +288,7 @@ passable g p = not (occupied c) && (0.0 == terrain (tile c))
     c = getCell g p
 
 dist :: Pos -> Pos -> Int
-dist (x1, y1) (x2, y2) = floor $ sqrt $ fromIntegral $ dx * dx + dy * dy
+dist (x1, y1) (x2, y2) = sqrtInt $ dx * dx + dy * dy
   where
     dx = x1 - x2
     dy = y1 - y2
@@ -391,7 +394,7 @@ generateDungeon w h = do
   return $ as ++ (b:cs)
 
 commonZombies :: Game -> Int
-commonZombies g = floor $ sqrt $ fromIntegral $ width g * height g
+commonZombies g = sqrtInt $ width g * height g
 
 zombieCreep :: [Bool]
 zombieCreep = [True, False, False, False]
