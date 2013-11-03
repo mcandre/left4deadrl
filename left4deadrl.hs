@@ -22,7 +22,7 @@ data Game = Game {
   }
 
 sqrtInt :: Int -> Int
-sqrtInt = floor . sqrt . fromIntegral
+sqrtInt = floor . (sqrt :: Double -> Double) . fromIntegral
 
 -- Assumes each row is the same length
 width :: Game -> Int
