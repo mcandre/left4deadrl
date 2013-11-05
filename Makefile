@@ -5,6 +5,7 @@ left4deadrl: left4deadrl.hs hscharm.hs charm.c charm.h
 
 lint:
 	hlint .
+	splint *.c *.h -preproc
 
 clean:
 	-rm *.exe
