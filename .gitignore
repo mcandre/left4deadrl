@@ -1,4 +1,6 @@
-left4deadrl
-left4deadrl.exe
+*.exe
 *.hi
 *.o
+Gemfile.lock
+tmp/
+left4deadrl
