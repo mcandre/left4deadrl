@@ -1,0 +1,3 @@
+[submodule "hscharm"]
+	path = hscharm
+	url = git@github.com:mcandre/hscharm.git

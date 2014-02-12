@@ -9,8 +9,15 @@
 
 ## EXAMPLE
 
+    $ git submodule init
+    $ git submodule update
+    $ cd hscharm/
+    hscharm$ git submodule init
+    hscharm$ git submodule update
+    hscharm$ cd ..
 	$ make
-	$ ./left4deadrl
+
+    $ ./left4deadrl
 	    #    #  #                      #        # #   #                 #         # 
 	 #  zz    #   z# # z  #         #     z                   #                # #  
 	                       #       #   #                   #   #                    
