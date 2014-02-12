@@ -1,13 +1,13 @@
 # Left4DeadRL - a Left4Dead Roguelike
 
-## REQUIREMENTS
+# REQUIREMENTS
 
  - [Haskell](http://haskell.org/)
  - MissingH
  - random-fu
  - Windows users must install either [make](https://github.com/mcandre/make-win) or [MinGW](http://www.mingw.org/)
 
-## EXAMPLE
+# EXAMPLE
 
     $ git submodule init
     $ git submodule update
