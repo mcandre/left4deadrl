@@ -1,7 +1,7 @@
 all: left4deadrl
 
 left4deadrl: left4deadrl.hs hscharm/hscharm.hs hscharm/charm/charm.c hscharm/charm/charm.h
-	ghc -O2 -Wall --make -fforce-recomp -o left4deadrl left4deadrl.hs hscharm/hscharm.hs hscharm/charm/charm.c hscharm/charm/charm.h -package MissingH -package random-fu
+	ghc -O2 -Wall -fwarn-tabs --make -fforce-recomp -o left4deadrl left4deadrl.hs hscharm/hscharm.hs hscharm/charm/charm.c hscharm/charm/charm.h -package MissingH -package random-fu
 
 lint:
 	hlint .
