@@ -4,6 +4,8 @@
 --
 -- Andrew Pennebaker
 
+module Left4DeadRL where
+
 import HsCharm
 import Data.Random
 import Prelude hiding (lookup)
