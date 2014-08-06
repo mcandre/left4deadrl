@@ -1,6 +1,5 @@
-*.exe
+bin/
 *.hi
 *.o
 Gemfile.lock
 tmp/
-left4deadrl
