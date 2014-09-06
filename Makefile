@@ -11,7 +11,10 @@ $(BIN): Left4DeadRL.hs hscharm/hscharm.hs hscharm/charm/charm.c hscharm/charm/ch
 hlint:
 	hlint .
 
-lint: hlint
+lili:
+	bundle exec lili .
+
+lint: hlint lili
 
 churn:
 	bundle exec churn
