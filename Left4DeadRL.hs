@@ -375,7 +375,7 @@ loop g = case (win g, lose g) of
                 else return g
 
           g'' <- respond g' (monsters g')
-                                
+
           loop g'')
 
 generateRow :: Int -> IO [Cell]
