@@ -19,7 +19,7 @@ executable left4deadrl
     base           >= 4.3.1.0 && < 5,
     random         >= 1.1 && < 2,
     random-shuffle >= 0.0.4 && < 0.0.5,
-    hscharm        >= 0.0.1 && < 0.0.2
+    hscharm        >= 0.0.2 && < 0.0.3
 
   ghc-options: -Wall -fwarn-tabs
   main-is: Left4DeadRL.hs
