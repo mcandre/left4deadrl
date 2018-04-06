@@ -4,7 +4,7 @@ import System.Directory as Dir
 
 main :: IO ()
 main = do
-  let tarball = "dist/left4deadrl-0.0.1.tar.gz"
+  let tarball = "dist/left4deadrl-0.0.2.tar.gz"
   homeDir <- Dir.getHomeDirectory
 
   shakeArgs shakeOptions{ shakeFiles="dist" } $ do
