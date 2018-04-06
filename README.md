@@ -30,6 +30,10 @@ $ left4deadrl
                     Get to the safehouse on the other side.
 ```
 
+# DOCUMENTATION
+
+https://hackage.haskell.org/package/left4deadrl
+
 # RUNTIME REQUIREMENTS
 
 (None)
