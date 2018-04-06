@@ -22,7 +22,7 @@ main = do
     phony "install" $
       cmd_ "cabal" "install"
 
-    phony "uninstall" $ do
+    phony "uninstall" $
       removeFilesAfter homeDir ["/.cabal/bin/left4deadrl" <.> exe]
 
     phony "build" $
