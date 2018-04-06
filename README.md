@@ -2,7 +2,7 @@
 
 # EXAMPLE
 
-```
+```console
 $ git submodule init
 $ git submodule update
 $ cd hscharm/
@@ -38,9 +38,36 @@ $ ./left4deadrl
                     Get to the safehouse on the other side.
 ```
 
-# REQUIREMENTS
+# RUNTIME REQUIREMENTS
 
-* [Haskell](http://haskell.org/)
-* MissingH
-* random-fu
-* Windows users must install either [make](https://github.com/mcandre/make-win) or [MinGW](http://www.mingw.org/)
+(None)
+
+# BUILDTIME REQUIREMENTS
+
+* [GHC Haskell](http://www.haskell.org/) 8+
+* [hscharm](https://github.com/mcandre/hscharm)
+
+## Recommended
+
+* [shake](https://shakebuild.com/) (e.g., `cabal install shake`)
+* [hlint](https://hackage.haskell.org/package/hlint) (e.g., `cabal install happy; cabal install hlint`)
+
+# BUILD
+
+```console
+$ cabal install --only-dependencies --enable-documentation
+$ cabal install --only-dependencies --enable-tests
+$ shake
+```
+
+# LINT
+
+```console
+$ shake lint
+```
+
+# PUBLISH
+
+```console
+$ shake publish
+```

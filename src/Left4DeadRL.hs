@@ -4,14 +4,17 @@
 --
 -- Andrew Pennebaker
 
-module Left4DeadRL where
+module Main where
 
-import HsCharm
-import Data.Random
-import Prelude hiding (lookup)
+import qualified System.Random as Random
+import qualified System.Random.Shuffle as Shuffle
+
+import Prelude
 import Data.Maybe (fromJust)
 import Control.Monad (when, replicateM)
 import Data.List (sortBy)
+
+import HsCharm
 
 type Pos = (Int, Int)
 
@@ -326,7 +329,8 @@ respond g (a:as) = do
                 let g' = (strike g a r) { messages = ("You were struck by a " ++ monsterName m ++ "."):voicemail g }
                 respond g' as
               else do
-                creep <- sample (randomElement zombieCreep)
+                stdGen <- Random.getStdGen
+                let creep = head $ Shuffle.shuffle' zombieCreep (length zombieCreep) stdGen
 
                 if creep
                   then case greedyPath g a r of
@@ -336,7 +340,7 @@ respond g (a:as) = do
                       respond g' as
                     -- No path. Monster will sit.
                     _ -> respond (g { messages = ("A " ++ monsterName m ++ " sat down."):voicemail g }) as
-                else respond g as
+                  else respond g as
     -- Monster is no longer there.
     _ -> respond g as
 
@@ -379,12 +383,11 @@ loop g = case (win g, lose g) of
           loop g'')
 
 generateRow :: Int -> IO [Cell]
-generateRow w = (replicateM w . sample . randomElement) (emptyWall:replicate 10 emptySpace)
+generateRow w = replicate w . head . Shuffle.shuffle' (emptyWall : replicate 10 emptySpace) 11 <$> Random.getStdGen
 
 generateSafehouseRow :: Int -> IO [Cell]
 generateSafehouseRow w = do
-  cells <- (replicateM (w - 2) . sample . randomElement) (emptyWall:replicate 10 emptySpace)
-
+  cells <- replicate (w - 2) . head . Shuffle.shuffle' (emptyWall:replicate 10 emptySpace) 11 <$> Random.getStdGen
   return $ emptySafehouseEntrance:(cells ++ [emptySafehouseExit])
 
 generateDungeon :: Int -> Int -> IO [[Cell]]
@@ -410,8 +413,8 @@ placeMonster g (x, y) r = putCell g (x, y) c'
 placeMonsters :: Game -> [Monster] -> IO Game
 placeMonsters g [] = return g
 placeMonsters g (m:ms) = do
-  x <- sample (randomElement [0 .. width g - 1])
-  y <- sample (randomElement [0 .. height g - 1])
+  x <- Random.getStdRandom $ Random.randomR (0, width g - 1)
+  y <- Random.getStdRandom $ Random.randomR (0, height g - 1)
 
   -- If cell is occupied or impassible, reroll.
   if not (passable g (x, y))
@@ -452,7 +455,5 @@ restart = newGame >>= loop
 main :: IO ()
 main = do
   startCharm
-
   restart
-
   endCharm
