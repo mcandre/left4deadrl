@@ -23,7 +23,6 @@ main = do
       cmd_ "cabal" "install"
 
     phony "uninstall" $ do
-      cmd_ "ghc-pkg" "unregister" "--force" "left4deadrl"
       removeFilesAfter homeDir ["/.cabal/bin/left4deadrl" <.> exe]
 
     phony "build" $
