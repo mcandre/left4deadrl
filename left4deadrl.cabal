@@ -1,8 +1,8 @@
 name:           left4deadrl
-version:        0.0.1
+version:        0.0.2
 category:       Math
-synopsis:       Wau codec
-description:    A base unary encoder/decoder
+synopsis:       left4dead-inspired roguelike
+description:    a zombie game written with hscharm
 license:        BSD3
 license-file:   LICENSE.md
 author:         Andrew Pennebaker
