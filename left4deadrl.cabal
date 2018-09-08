@@ -24,3 +24,17 @@ executable left4deadrl
   ghc-options: -Wall -fwarn-tabs
   main-is: Left4DeadRL.hs
   hs-source-dirs: src
+
+test-suite reference
+  build-depends:
+    base                        >= 4.3.1.0 && < 5,
+    hlint                       >= 2.1.10 && < 3,
+    shake                       >= 0.16.4 && < 0.17,
+    random                      >= 1.1 && < 2,
+    random-shuffle              >= 0.0.4 && < 0.0.5,
+    hscharm                     >= 0.0.2 && < 0.0.3
+
+  ghc-options:        -Wall -fwarn-tabs
+  hs-source-dirs:     src
+  main-is:            Left4DeadRL.hs
+  type:               exitcode-stdio-1.0

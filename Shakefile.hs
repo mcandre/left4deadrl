@@ -19,6 +19,10 @@ main = do
     phony "lint" $
       need ["hlint"]
 
+    phony "test" $ do
+      need ["dist/bin/left4deadrl" <.> exe]
+      cmd_ $ "dist/bin/left4deadrl" <.> exe
+
     phony "install" $
       cmd_ "cabal" "install"
 

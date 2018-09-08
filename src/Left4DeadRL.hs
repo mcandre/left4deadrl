@@ -243,8 +243,6 @@ blotDungeon g = do
 
   mapM_ (blotCell g) fog
 
-  return ()
-
 win :: Game -> Bool
 win g = safehouseEntranceLoc g == rogueLoc g
 
